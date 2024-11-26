@@ -64,83 +64,90 @@ public class MyProfile implements Profile {
             List<VectorTile.Feature> items) throws GeometryException {
         List<VectorTile.Feature> result = new ArrayList<>();
 
-
         double buffer = 4.0;
         double minLength = 0 * 0.0625;
-        double stubMinLength = 0;
-        double loopMinLength = 0;
+        double stubMinLength = 0 * 0.0625;
+        double loopMinLength = 0 * 0.0625;
 
         double tolerance = 1 * 0.0625;
         boolean mergeStrokes = false;
 
         result = mergeLineStrings(items, buffer, minLength, stubMinLength, loopMinLength, tolerance, mergeStrokes);
 
-        // buffer = 4.0;
-        // minLength = 0 * 0.0625;
-        // stubMinLength = 8 * 0.0625;
-        // loopMinLength = 8 * 0.0625;
+        buffer = 4.0;
+        minLength = 0 * 0.0625;
+        stubMinLength = 30 * 0.0625;
+        loopMinLength = 30 * 0.0625;
 
-        // tolerance = 1 * 0.0625;
-        // mergeStrokes = false;
+        tolerance = 1 * 0.0625;
+        mergeStrokes = false;
 
-        // result = mergeLineStrings(items, buffer, minLength, stubMinLength, loopMinLength, tolerance, mergeStrokes);
-
+        result = mergeLineStrings(items, buffer, minLength, stubMinLength,
+        loopMinLength, tolerance, mergeStrokes);
 
         return result;
     }
 
-    public static List<VectorTile.Feature> mergeLineStrings(List<VectorTile.Feature> features, double buffer, double minLength, double stubMinLength, double loopMinLength, double tolerance, boolean mergeStrokes) {
+    public static List<VectorTile.Feature> mergeLineStrings(List<VectorTile.Feature> features, double buffer,
+            double minLength, double stubMinLength, double loopMinLength, double tolerance, boolean mergeStrokes) {
         List<VectorTile.Feature> result = new ArrayList<>(features.size());
-        var groupedByAttrs = FeatureMerge.groupByAttrs(features, result, GeometryType.LINE);
-        for (List<VectorTile.Feature> groupedFeatures : groupedByAttrs) {
-            VectorTile.Feature feature1 = groupedFeatures.getFirst();
+        List<List<VectorTile.Feature>> groupedByAttrs = new ArrayList<>(FeatureMerge.groupByAttrs(features, result, GeometryType.LINE));
 
-            LoopLineMerger merger = new LoopLineMerger()
-                    .setTolerance(tolerance)
-                    .setMergeStrokes(mergeStrokes)
-                    .setMinLength(minLength)
-                    .setLoopMinLength(loopMinLength)
-                    // .setPrecisionModel(new PrecisionModel(-0.5))
-                    .setStubMinLength(stubMinLength);
+        LoopLineMerger merger = new LoopLineMerger()
+                .setTolerance(tolerance)
+                .setMergeStrokes(mergeStrokes)
+                .setMinLength(minLength)
+                .setLoopMinLength(loopMinLength)
+                // .setPrecisionModel(new PrecisionModel(-0.5))
+                .setStubMinLength(stubMinLength);
+
+        int groupId = 0;
+        for (List<VectorTile.Feature> groupedFeatures : groupedByAttrs) {
             for (VectorTile.Feature feature : groupedFeatures) {
                 try {
-                    merger.add(feature.geometry().decode());
+                    var geometry = feature.geometry().decode();
+                    if (geometry instanceof LineString line) {
+                        merger.add(new LoopLineMerger.LineStringWithGroupId(line, groupId));
+                    }
                 } catch (GeometryException e) {
                     e.log("Error decoding vector tile feature for line merge: " + feature);
                 }
             }
-            List<LineString> outputSegments = new ArrayList<>();
-            for (var line : merger.getMergedLineStrings()) {
-                if (buffer >= 0) {
-                    removeDetailOutsideTile(line, buffer, outputSegments);
-                } else {
-                    outputSegments.add(line);
-                }
+            groupId++;
+        }
+        
+        List<LoopLineMerger.LineStringWithGroupId> outputSegments = new ArrayList<>();
+        for (var lineWithGroupId : merger.getMergedLineStrings()) {
+            if (buffer >= 0) {
+                removeDetailOutsideTile(lineWithGroupId, buffer, outputSegments);
+            } else {
+                outputSegments.add(lineWithGroupId);
             }
+        }
 
-            if (!outputSegments.isEmpty()) {
-                var idx = 0;
-                for (var outputSegment : outputSegments) {
-                    Map<String, Object> attrs = new HashMap<>();
-                    attrs.put("idx", idx++);
-                    result.add(feature1.copyWithNewGeometry(outputSegment).copyWithExtraAttrs(attrs));
-                    attrs.put("apoint", "yes");
-                    for (var coordinate : outputSegment.getCoordinates()) {
-                        result.add(feature1.copyWithNewGeometry(outputSegment.getFactory().createPoint(coordinate)).copyWithExtraAttrs(attrs));
-                    }
-                    // attrs.put("kind", "start");
-                    // result.add(feature1.copyWithNewGeometry(outputSegment.getStartPoint()).copyWithExtraAttrs(attrs));
-                    // attrs.put("kind", "end");
-                    // result.add(feature1.copyWithNewGeometry(outputSegment.getEndPoint()).copyWithExtraAttrs(attrs));
-                }
+        if (!outputSegments.isEmpty()) {
+            for (var outputSegment : outputSegments) {
+                var feature1 = groupedByAttrs.get(outputSegment.groupId()).getFirst();
+                result.add(feature1.copyWithNewGeometry(outputSegment.line()));
+                Map<String, Object> attrs = new HashMap<>();
+                attrs.put("kind", "startend");
+                result.add(feature1.copyWithNewGeometry(outputSegment.line().getStartPoint()).copyWithExtraAttrs(attrs));
+                result.add(feature1.copyWithNewGeometry(outputSegment.line().getEndPoint()).copyWithExtraAttrs(attrs));
+
+                // attrs.remove("kind");
+                // attrs.put("apoint", "yes");
+                // for (var coordinate : outputSegment.line().getCoordinates()) {
+                //     var point = outputSegment.line().getFactory().createPoint(coordinate);
+                //     result.add(feature1.copyWithExtraAttrs(attrs).copyWithNewGeometry(point));
+                // }
             }
         }
         return result;
     }
 
-    private static void removeDetailOutsideTile(LineString input, double buffer, List<LineString> output) {
+    private static void removeDetailOutsideTile(LoopLineMerger.LineStringWithGroupId input, double buffer, List<LoopLineMerger.LineStringWithGroupId> output) {
         MutableCoordinateSequence current = new MutableCoordinateSequence();
-        CoordinateSequence seq = input.getCoordinateSequence();
+        CoordinateSequence seq = input.line().getCoordinateSequence();
         boolean wasIn = false;
         double min = -buffer, max = 256 + buffer;
         double x = seq.getX(0), y = seq.getY(0);
@@ -156,7 +163,7 @@ public class MyProfile implements Profile {
                 // wait to flush until 2 consecutive outs
                 if (!current.isEmpty()) {
                     if (current.size() >= 2) {
-                        output.add(GeoUtils.JTS_FACTORY.createLineString(current));
+                        output.add(new LoopLineMerger.LineStringWithGroupId(GeoUtils.JTS_FACTORY.createLineString(current), input.groupId()));
                     }
                     current = new MutableCoordinateSequence();
                 }
@@ -174,21 +181,9 @@ public class MyProfile implements Profile {
         }
 
         if (current.size() >= 2) {
-            output.add(GeoUtils.JTS_FACTORY.createLineString(current));
+            output.add(new LoopLineMerger.LineStringWithGroupId(GeoUtils.JTS_FACTORY.createLineString(current), input.groupId()));
         }
     }
-
-    private static <G extends Geometry> List<G> sortByHilbertIndex(List<G> geometries) {
-        return geometries.stream()
-                .map(p -> new WithIndex<>(p, VectorTile.hilbertIndex(p)))
-                .sorted(BY_HILBERT_INDEX)
-                .map(d -> d.feature)
-                .toList();
-    }
-
-    private record WithIndex<T>(T feature, int hilbert) {}
-    private static final Comparator<WithIndex<?>> BY_HILBERT_INDEX =
-    (o1, o2) -> Integer.compare(o1.hilbert, o2.hilbert);
 
     @Override
     public String attribution() {

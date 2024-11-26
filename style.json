@@ -18,10 +18,10 @@
             "id": "points",
             "source": "roads",
             "source-layer": "roads",
-            "filter": ["has", "apoint"],
+            "filter": ["has", "kind"],
             "type": "circle",
             "layout": {
-                "visibility": "none"
+                "visibility": "visible"
             },
             "paint": {
                 "circle-color": "#74ee15",

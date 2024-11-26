@@ -21,7 +21,9 @@
     const map = new maplibregl.Map({
         style: 'style.json',
         hash: 'map',
-        container: 'map'
+        container: 'map',
+        center: [9.2639, 45.1392],
+        zoom: 7
     });
     map.showTileBoundaries = true;
 
