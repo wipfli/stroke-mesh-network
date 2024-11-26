@@ -21,7 +21,7 @@
             "filter": ["has", "kind"],
             "type": "circle",
             "layout": {
-                "visibility": "visible"
+                "visibility": "none"
             },
             "paint": {
                 "circle-color": "#74ee15",
@@ -77,8 +77,8 @@
                     "motorway_link",
                     "black",
                     "trunk_link",
-                    "gray",
-                    "rgba(0,0,0,0)"
+                    "red",
+                    "orange"
                 ],
                 "line-width": [
                     "match",

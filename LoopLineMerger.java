@@ -2,6 +2,7 @@ import com.onthegomap.planetiler.geo.DouglasPeuckerSimplifier;
 import com.onthegomap.planetiler.geo.GeoUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -232,11 +233,11 @@ public class LoopLineMerger {
           }
         }
         if (loops.size() > 1) {
-          HasLoop min = loops.stream().min(Comparator.comparingDouble(HasLoop::distance)).get();
-          for (var loop : loops) {
-            if (loop != min) {
-              loop.edge.remove();
-            }
+          loops.sort(Comparator.comparingInt((HasLoop l) -> l.edge.groupId)
+            .thenComparingDouble((HasLoop l) -> -l.distance));
+          Collections.reverse(loops);
+          for (var loop : loops.subList(1, loops.size())) {
+            loop.edge.remove();
           }
         }
       }
@@ -352,7 +353,7 @@ public class LoopLineMerger {
         Edge a = node.getEdges().get(i);
         for (var j = i + 1; j < node.getEdges().size(); ++j) {
           Edge b = node.getEdges().get(j);
-          if (b.to == a.to && a.coordinates.equals(b.coordinates)) {
+          if (a.groupId == b.groupId && b.to == a.to && a.coordinates.equals(b.coordinates)) {
             toRemove.add(b);
           }
         }
@@ -508,7 +509,7 @@ public class LoopLineMerger {
 
     void addEdge(Edge edge) {
       for (Edge other : this.edge) {
-        if (other.coordinates.equals(edge.coordinates)) {
+        if (other.groupId == edge.groupId && other.coordinates.equals(edge.coordinates)) {
           return;
         }
       }
@@ -605,7 +606,7 @@ public class LoopLineMerger {
     @Override
     public String toString() {
       return "Edge{" + from.id + "->" + to.id + (main ? "" : "(R)") + ": [" + coordinates.getFirst() + ".." +
-        coordinates.getLast() + "], length=" + length + '}';
+        coordinates.getLast() + "], length=" + length + ", groupId=" + groupId + '}';
     }
   }
 }

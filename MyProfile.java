@@ -26,7 +26,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 
+
+
 public class MyProfile implements Profile {
+
+    private Map<String, Long> highwayToGroupId = new HashMap<>();
+
+    MyProfile() {
+        long groupId = 0;
+        highwayToGroupId.put("primary_link", groupId++);
+        highwayToGroupId.put("trunk_link", groupId++);
+        highwayToGroupId.put("motorway_link", groupId++);
+        highwayToGroupId.put("primary", groupId++);
+        highwayToGroupId.put("trunk", groupId++);
+        highwayToGroupId.put("motorway", groupId++);
+    }
+
     public static void main(String[] args) {
         var arguments = Arguments.fromArgs(args)
                 .withDefault("download", true)
@@ -42,17 +57,25 @@ public class MyProfile implements Profile {
     @Override
     public void processFeature(SourceFeature sourceFeature, FeatureCollector features) {
         if (sourceFeature.canBeLine()) {
-            if (sourceFeature.hasTag("highway", "motorway", "motorway_link", "trunk", "trunk_link", "primary")) {
+            
+            boolean keep = false;
+            for (var highway : highwayToGroupId.keySet()) {
+                keep = keep || sourceFeature.hasTag("highway", highway);
+            }
+
+            if (keep) {
                 var minzoom = 3;
                 if (sourceFeature.hasTag("highway", "trunk", "trunk_link")) {
                     minzoom = 6;
                 } else if (sourceFeature.hasTag("highway", "primary")) {
                     minzoom = 7;
                 }
+
                 features.line("roads")
                         // .setAttr("idx", sourceFeature.id())
                         .setPixelTolerance(0.0)
                         .setAttr("highway", sourceFeature.getTag("highway"))
+                        .setAttr("groupId", highwayToGroupId.get(sourceFeature.getTag("highway").toString()))
                         .setMinZoom(minzoom)
                         .setMinPixelSize(0.0);
             }
@@ -77,13 +100,35 @@ public class MyProfile implements Profile {
         buffer = 4.0;
         minLength = 0 * 0.0625;
         stubMinLength = 30 * 0.0625;
-        loopMinLength = 30 * 0.0625;
+        loopMinLength = 0 * 0.0625;
 
-        tolerance = 1 * 0.0625;
+        tolerance = -1 * 0.0625;
         mergeStrokes = false;
 
-        result = mergeLineStrings(items, buffer, minLength, stubMinLength,
-        loopMinLength, tolerance, mergeStrokes);
+        result = mergeLineStrings(result, buffer, minLength, stubMinLength,
+                loopMinLength, tolerance, mergeStrokes);
+
+        // for (var feature : result) {
+        //     if (feature.hasTag("highway", "motorway_link")) {
+        //         feature.setTag("highway", "motorway");
+        //         feature.setTag("groupId", highwayToGroupId.get("motorway"));
+        //     }
+        //     if (feature.hasTag("highway", "trunk_link")) {
+        //         feature.setTag("highway", "trunk");
+        //         feature.setTag("groupId", highwayToGroupId.get("trunk"));
+        //     }
+        // }
+
+        // buffer = 4.0;
+        // minLength = 0 * 0.0625;
+        // stubMinLength = 30 * 0.0625;
+        // loopMinLength = 30 * 0.0625;
+
+        // tolerance = 1 * 0.0625;
+        // mergeStrokes = false;
+
+        // result = mergeLineStrings(result, buffer, minLength, stubMinLength,
+        //         loopMinLength, tolerance, mergeStrokes);
 
         return result;
     }
@@ -91,8 +136,10 @@ public class MyProfile implements Profile {
     public static List<VectorTile.Feature> mergeLineStrings(List<VectorTile.Feature> features, double buffer,
             double minLength, double stubMinLength, double loopMinLength, double tolerance, boolean mergeStrokes) {
         List<VectorTile.Feature> result = new ArrayList<>(features.size());
-        List<List<VectorTile.Feature>> groupedByAttrs = new ArrayList<>(FeatureMerge.groupByAttrs(features, result, GeometryType.LINE));
+        List<List<VectorTile.Feature>> groupedByAttrs = new ArrayList<>(
+                FeatureMerge.groupByAttrs(features, result, GeometryType.LINE));
 
+        groupedByAttrs.sort((groupA, groupB) -> Long.compare((Long) groupA.getFirst().getTag("groupId"), (Long) groupB.getFirst().getTag("groupId")));
         LoopLineMerger merger = new LoopLineMerger()
                 .setTolerance(tolerance)
                 .setMergeStrokes(mergeStrokes)
@@ -101,7 +148,7 @@ public class MyProfile implements Profile {
                 // .setPrecisionModel(new PrecisionModel(-0.5))
                 .setStubMinLength(stubMinLength);
 
-        int groupId = 0;
+        var groupId = 0;
         for (List<VectorTile.Feature> groupedFeatures : groupedByAttrs) {
             for (VectorTile.Feature feature : groupedFeatures) {
                 try {
@@ -115,7 +162,7 @@ public class MyProfile implements Profile {
             }
             groupId++;
         }
-        
+
         List<LoopLineMerger.LineStringWithGroupId> outputSegments = new ArrayList<>();
         for (var lineWithGroupId : merger.getMergedLineStrings()) {
             if (buffer >= 0) {
@@ -131,21 +178,23 @@ public class MyProfile implements Profile {
                 result.add(feature1.copyWithNewGeometry(outputSegment.line()));
                 Map<String, Object> attrs = new HashMap<>();
                 attrs.put("kind", "startend");
-                result.add(feature1.copyWithNewGeometry(outputSegment.line().getStartPoint()).copyWithExtraAttrs(attrs));
+                result.add(
+                        feature1.copyWithNewGeometry(outputSegment.line().getStartPoint()).copyWithExtraAttrs(attrs));
                 result.add(feature1.copyWithNewGeometry(outputSegment.line().getEndPoint()).copyWithExtraAttrs(attrs));
 
                 // attrs.remove("kind");
                 // attrs.put("apoint", "yes");
                 // for (var coordinate : outputSegment.line().getCoordinates()) {
-                //     var point = outputSegment.line().getFactory().createPoint(coordinate);
-                //     result.add(feature1.copyWithExtraAttrs(attrs).copyWithNewGeometry(point));
+                // var point = outputSegment.line().getFactory().createPoint(coordinate);
+                // result.add(feature1.copyWithExtraAttrs(attrs).copyWithNewGeometry(point));
                 // }
             }
         }
         return result;
     }
 
-    private static void removeDetailOutsideTile(LoopLineMerger.LineStringWithGroupId input, double buffer, List<LoopLineMerger.LineStringWithGroupId> output) {
+    private static void removeDetailOutsideTile(LoopLineMerger.LineStringWithGroupId input, double buffer,
+            List<LoopLineMerger.LineStringWithGroupId> output) {
         MutableCoordinateSequence current = new MutableCoordinateSequence();
         CoordinateSequence seq = input.line().getCoordinateSequence();
         boolean wasIn = false;
@@ -163,7 +212,8 @@ public class MyProfile implements Profile {
                 // wait to flush until 2 consecutive outs
                 if (!current.isEmpty()) {
                     if (current.size() >= 2) {
-                        output.add(new LoopLineMerger.LineStringWithGroupId(GeoUtils.JTS_FACTORY.createLineString(current), input.groupId()));
+                        output.add(new LoopLineMerger.LineStringWithGroupId(
+                                GeoUtils.JTS_FACTORY.createLineString(current), input.groupId()));
                     }
                     current = new MutableCoordinateSequence();
                 }
@@ -181,7 +231,8 @@ public class MyProfile implements Profile {
         }
 
         if (current.size() >= 2) {
-            output.add(new LoopLineMerger.LineStringWithGroupId(GeoUtils.JTS_FACTORY.createLineString(current), input.groupId()));
+            output.add(new LoopLineMerger.LineStringWithGroupId(GeoUtils.JTS_FACTORY.createLineString(current),
+                    input.groupId()));
         }
     }
 
