@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css' />
+    <script src='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'></script>
+    <script src="https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js"></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+
+    const protocol = new pmtiles.Protocol();
+    maplibregl.addProtocol('pmtiles', protocol.tile);
+    
+    const map = new maplibregl.Map({
+        style: 'style.json',
+        hash: 'map',
+        container: 'map'
+    });
+    map.showTileBoundaries = true;
+
+    
+    const featureMap = {};
+    const skip = [];
+    map.on('click', (e) => {
+        const features = map.queryRenderedFeatures(e.point);
+        for (var i = 0; i < features.length; ++i) {
+            var idx = features[i].properties.idx;
+            var geometry = features[i].geometry;
+            if (geometry.type === 'Point') {
+                const feature = {
+                    type: 'Feature',
+                    geometry
+                };
+                const coordinatesJson = JSON.stringify(geometry.coordinates);
+
+                if (!(coordinatesJson in featureMap)) {
+                    featureMap[coordinatesJson] = feature;
+                }
+                if (features[i].source === 'points') {
+                    skip.push(coordinatesJson);
+                }
+            }
+        }
+        for (var c of skip) {
+            delete featureMap[c];
+        }
+        skip.length = 0;
+        const geojson = {
+            type: 'FeatureCollection',
+            features: Object.values(featureMap)
+        }
+        map.getSource("points").setData(geojson);
+    });
+
+</script>
+</body>
+</html>

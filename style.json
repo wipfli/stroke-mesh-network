@@ -1,0 +1,122 @@
+{
+    "version": 8,
+    "sources": {
+        "roads": {
+            "type": "vector",
+            "url": "pmtiles://http://localhost:3000/data/roads.pmtiles"
+        },
+        "points": {
+            "type": "geojson",
+            "data": {
+                "type": "FeatureCollection",
+                "features": []
+            }
+        }
+    },
+    "layers": [
+        {
+            "id": "points",
+            "source": "roads",
+            "source-layer": "roads",
+            "filter": ["has", "apoint"],
+            "type": "circle",
+            "layout": {
+                "visibility": "none"
+            },
+            "paint": {
+                "circle-color": "#74ee15",
+                "circle-radius": [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    10,
+                    2,
+                    14,
+                    15
+                ]
+            }
+        },
+        {
+            "id": "selected-points",
+            "source": "points",
+            "type": "circle",
+            "layout": {
+                "visibility": "visible"
+            },
+            "paint": {
+                "circle-color": "#fff",
+                "circle-radius": [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    10,
+                    2,
+                    14,
+                    15
+                ]
+            }
+        },
+        {
+            "id": "roads",
+            "source": "roads",
+            "source-layer": "roads",
+            "type": "line",
+            "layout": {
+                "line-cap": "round"
+            },
+            "paint": {
+                "line-color": [
+                    "match",
+                    ["get", "highway"],
+                    "motorway",
+                    "#001eff",
+                    "trunk",
+                    "#f000ff",
+                    "primary",
+                    "#ffe700",
+                    "motorway_link",
+                    "black",
+                    "trunk_link",
+                    "gray",
+                    "rgba(0,0,0,0)"
+                ],
+                "line-width": [
+                    "match",
+                    ["get", "highway"],
+                    "motorway",
+                    4,
+                    "trunk",
+                    3,
+                    "primary",
+                    2,
+                    "motorway_link",
+                    1,
+                    "trunk_link",
+                    1,
+                    1
+                ]
+            }
+        },
+        {
+            "id": "roads-hit",
+            "source": "roads",
+            "source-layer": "roads",
+            "type": "line",
+            "paint": {
+                "line-opacity": 0,
+                "line-width": 10
+            }
+        },
+        {
+            "id": "highlight",
+            "source": "roads",
+            "source-layer": "roads",
+            "filter": ["==", ["get", "idx"], -1],
+            "type": "line",
+            "paint": {
+                "line-width": 5,
+                "line-color": "#f000ff"
+            }
+        }
+    ]
+}
