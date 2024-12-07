@@ -51,27 +51,12 @@
         source: 'line-source',
         'source-layer': 'output',
         layout: {
-          'line-sort-key': ['get', 'frequency'],
+          // 'line-sort-key': ['get', 'frequency'],
           'line-cap': 'round'
         },
-        filter: [
-          ">", ["get", "frequency"], 0.5
-        ],
         paint: {
-          'line-color': [
-            'interpolate',
-            ['exponential', 0.001],
-            ['get', 'frequency'],
-            0, '#72FFFF',
-            1, '#0096FF'
-        ],
-          'line-width': [
-            'interpolate',
-            ['exponential', 0.001],
-            ['get', 'frequency'],
-            0, 1,  // Frequency 0 -> Width 1
-            1, 5   // Frequency 1 -> Width 5
-          ],
+          'line-color': 'black',
+          'line-width': 1,
           'line-opacity': 1.0,
         }
       });
@@ -82,9 +67,11 @@
         'source-layer': 'output',
         minzoom: 15,
         layout: {
-          'text-field': ["get", "frequency"],
+          'text-field': ["get", "visits"],
           'text-font': ['Noto Sans Regular'],
-          'symbol-placement': 'line'
+          'symbol-placement': 'line',
+          'text-anchor': 'left',
+          'text-offset': [0, 0.6],
         },
         paint: {
         }
