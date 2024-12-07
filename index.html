@@ -33,6 +33,15 @@
     map.on('click', (e) => {
         const features = map.queryRenderedFeatures(e.point);
         for (var i = 0; i < features.length; ++i) {
+            if (features[i].layer.id === 'roads') {
+                continue;
+            }
+            console.log({
+                layerId: features[i].layer.id, 
+                debugId: features[i].properties.debugId, 
+                kind: features[i].properties.kind
+            });
+            continue;
             var idx = features[i].properties.idx;
             var geometry = features[i].geometry;
             if (geometry.type === 'Point') {

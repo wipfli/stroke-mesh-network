@@ -17,6 +17,8 @@ import org.locationtech.jts.geom.CoordinateSequence;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.CoordinateXY;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Envelope;
 
@@ -26,26 +28,33 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 
-
-
 public class MyProfile implements Profile {
+
+    public static List<Coordinate> newCoordinateList(double... coords) {
+        List<Coordinate> result = new ArrayList<>(coords.length / 2);
+        for (int i = 0; i < coords.length; i += 2) {
+            result.add(new CoordinateXY(coords[i], coords[i + 1]));
+        }
+        return result;
+    }
 
     private Map<String, Long> highwayToGroupId = new HashMap<>();
 
     MyProfile() {
         long groupId = 0;
-        highwayToGroupId.put("primary_link", groupId++);
-        highwayToGroupId.put("trunk_link", groupId++);
-        highwayToGroupId.put("motorway_link", groupId++);
+        // highwayToGroupId.put("primary_link", groupId++);
+        // highwayToGroupId.put("trunk_link", groupId++);
+        // highwayToGroupId.put("motorway_link", groupId++);
         highwayToGroupId.put("primary", groupId++);
-        highwayToGroupId.put("trunk", groupId++);
-        highwayToGroupId.put("motorway", groupId++);
+        // highwayToGroupId.put("trunk", groupId++);
+        // highwayToGroupId.put("motorway", groupId++);
     }
 
     public static void main(String[] args) {
         var arguments = Arguments.fromArgs(args)
                 .withDefault("download", true)
-                .withDefault("maxzoom", 7);
+                // .withDefault("minzoom", 13)
+                .withDefault("maxzoom", 14);
         String area = "italy-north-highways";
         Planetiler.create(arguments)
                 .addOsmSource("osm", Path.of("data", area + ".osm.pbf"), "geofabrik:" + area)
@@ -57,7 +66,7 @@ public class MyProfile implements Profile {
     @Override
     public void processFeature(SourceFeature sourceFeature, FeatureCollector features) {
         if (sourceFeature.canBeLine()) {
-            
+
             boolean keep = false;
             for (var highway : highwayToGroupId.keySet()) {
                 keep = keep || sourceFeature.hasTag("highway", highway);
@@ -68,7 +77,7 @@ public class MyProfile implements Profile {
                 if (sourceFeature.hasTag("highway", "trunk", "trunk_link")) {
                     minzoom = 6;
                 } else if (sourceFeature.hasTag("highway", "primary")) {
-                    minzoom = 7;
+                    minzoom = 6;
                 }
 
                 features.line("roads")
@@ -87,36 +96,64 @@ public class MyProfile implements Profile {
             List<VectorTile.Feature> items) throws GeometryException {
         List<VectorTile.Feature> result = new ArrayList<>();
 
-        double buffer = 4.0;
-        double minLength = 0 * 0.0625;
-        double stubMinLength = 0 * 0.0625;
-        double loopMinLength = 0 * 0.0625;
+        // var feature1 = items.getFirst();
+        // System.out.println(feature1);
+        // System.exit(0);
+        // LoopLineMerger merger = new LoopLineMerger();
+        // var feature1 = items.getFirst();
+        // var factory = feature1.geometry().decode().getFactory();
+        // merger.add(new LoopLineMerger.LineStringWithGroupId(
+        //         factory.createLineString(newCoordinateList(0, 0, 1, 0, 1, 1).toArray(new Coordinate[0])), 0));
+        // merger.add(new LoopLineMerger.LineStringWithGroupId(
+        //         factory.createLineString(newCoordinateList(1, 1, 0, 0).toArray(new Coordinate[0])), 0));
+        // System.out.println(merger.getMergedLineStrings());
+        // System.exit(0);
 
-        double tolerance = 1 * 0.0625;
+        double buffer = 5.0;
+        double minLength = 0;
+        double loopMinLength = 0 * 5 * 0.0625 * Math.pow(2, zoom - 7);
+        double stubMinLength = 0 / Math.pow(2, 14 - zoom);
+
+        double tolerance = -1 * 0.0625;
         boolean mergeStrokes = false;
+        boolean debug = true;
 
-        result = mergeLineStrings(items, buffer, minLength, stubMinLength, loopMinLength, tolerance, mergeStrokes);
+        result = mergeLineStrings(items, buffer, minLength, stubMinLength,
+            loopMinLength, tolerance, mergeStrokes, debug);
 
-        buffer = 4.0;
-        minLength = 0 * 0.0625;
-        stubMinLength = 30 * 0.0625;
-        loopMinLength = 0 * 0.0625;
+        // tolerance = 1 * 0.0625;
+        // mergeStrokes = false;
+        // debug = true;
 
-        tolerance = -1 * 0.0625;
-        mergeStrokes = false;
+        // result = mergeLineStrings(result, buffer, minLength, stubMinLength,
+        //     loopMinLength, tolerance, mergeStrokes, debug);
 
-        result = mergeLineStrings(result, buffer, minLength, stubMinLength,
-                loopMinLength, tolerance, mergeStrokes);
+        // tolerance = -1;
+        // mergeStrokes = true;
+        // debug = true;
+        // result = mergeLineStrings(result, buffer, minLength, stubMinLength,
+        //     loopMinLength, tolerance, mergeStrokes, debug);
+
+        // buffer = 4.0;
+        // minLength = 0 * 0.0625;
+        // stubMinLength = 30 * 0.0625;
+        // loopMinLength = 0 * 0.0625;
+
+        // tolerance = -1 * 0.0625;
+        // mergeStrokes = false;
+
+        // result = mergeLineStrings(result, buffer, minLength, stubMinLength,
+        // loopMinLength, tolerance, mergeStrokes);
 
         // for (var feature : result) {
-        //     if (feature.hasTag("highway", "motorway_link")) {
-        //         feature.setTag("highway", "motorway");
-        //         feature.setTag("groupId", highwayToGroupId.get("motorway"));
-        //     }
-        //     if (feature.hasTag("highway", "trunk_link")) {
-        //         feature.setTag("highway", "trunk");
-        //         feature.setTag("groupId", highwayToGroupId.get("trunk"));
-        //     }
+        // if (feature.hasTag("highway", "motorway_link")) {
+        // feature.setTag("highway", "motorway");
+        // feature.setTag("groupId", highwayToGroupId.get("motorway"));
+        // }
+        // if (feature.hasTag("highway", "trunk_link")) {
+        // feature.setTag("highway", "trunk");
+        // feature.setTag("groupId", highwayToGroupId.get("trunk"));
+        // }
         // }
 
         // buffer = 4.0;
@@ -128,24 +165,25 @@ public class MyProfile implements Profile {
         // mergeStrokes = false;
 
         // result = mergeLineStrings(result, buffer, minLength, stubMinLength,
-        //         loopMinLength, tolerance, mergeStrokes);
+        // loopMinLength, tolerance, mergeStrokes);
 
         return result;
     }
 
     public static List<VectorTile.Feature> mergeLineStrings(List<VectorTile.Feature> features, double buffer,
-            double minLength, double stubMinLength, double loopMinLength, double tolerance, boolean mergeStrokes) {
+            double minLength, double stubMinLength, double loopMinLength, double tolerance, boolean mergeStrokes, boolean debug) {
         List<VectorTile.Feature> result = new ArrayList<>(features.size());
         List<List<VectorTile.Feature>> groupedByAttrs = new ArrayList<>(
                 FeatureMerge.groupByAttrs(features, result, GeometryType.LINE));
 
-        groupedByAttrs.sort((groupA, groupB) -> Long.compare((Long) groupA.getFirst().getTag("groupId"), (Long) groupB.getFirst().getTag("groupId")));
+        groupedByAttrs.sort((groupA, groupB) -> Long.compare((Long) groupA.getFirst().getTag("groupId"),
+                (Long) groupB.getFirst().getTag("groupId")));
         LoopLineMerger merger = new LoopLineMerger()
                 .setTolerance(tolerance)
                 .setMergeStrokes(mergeStrokes)
                 .setMinLength(minLength)
                 .setLoopMinLength(loopMinLength)
-                // .setPrecisionModel(new PrecisionModel(-0.5))
+                .setPrecisionModel(new PrecisionModel(PrecisionModel.FLOATING))
                 .setStubMinLength(stubMinLength);
 
         var groupId = 0;
@@ -173,21 +211,32 @@ public class MyProfile implements Profile {
         }
 
         if (!outputSegments.isEmpty()) {
+            int debugId = 0;
             for (var outputSegment : outputSegments) {
-                var feature1 = groupedByAttrs.get(outputSegment.groupId()).getFirst();
-                result.add(feature1.copyWithNewGeometry(outputSegment.line()));
                 Map<String, Object> attrs = new HashMap<>();
-                attrs.put("kind", "startend");
-                result.add(
-                        feature1.copyWithNewGeometry(outputSegment.line().getStartPoint()).copyWithExtraAttrs(attrs));
-                result.add(feature1.copyWithNewGeometry(outputSegment.line().getEndPoint()).copyWithExtraAttrs(attrs));
+                if (debug) {
+                    attrs.put("debugId", debugId);
+                    attrs.put("length", String.format("%.3f", outputSegment.line().getLength()));
+                }
+                var feature1 = groupedByAttrs.get(outputSegment.groupId()).getFirst();
+                result.add(feature1.copyWithExtraAttrs(attrs).copyWithNewGeometry(outputSegment.line()));
+                if (debug) {
+                    attrs.put("kind", "start");
+                    result.add(
+                            feature1.copyWithNewGeometry(outputSegment.line().getStartPoint()).copyWithExtraAttrs(attrs));
+                    attrs.put("kind", "end");
 
+                    result.add(feature1.copyWithNewGeometry(outputSegment.line().getEndPoint()).copyWithExtraAttrs(attrs));    
+                }
+                
                 // attrs.remove("kind");
                 // attrs.put("apoint", "yes");
                 // for (var coordinate : outputSegment.line().getCoordinates()) {
                 // var point = outputSegment.line().getFactory().createPoint(coordinate);
                 // result.add(feature1.copyWithExtraAttrs(attrs).copyWithNewGeometry(point));
                 // }
+
+                debugId++;
             }
         }
         return result;

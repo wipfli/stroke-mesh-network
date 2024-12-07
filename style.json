@@ -21,18 +21,18 @@
             "filter": ["has", "kind"],
             "type": "circle",
             "layout": {
-                "visibility": "none"
+                "visibility": "visible"
             },
             "paint": {
                 "circle-color": "#74ee15",
                 "circle-radius": [
                     "interpolate",
-                    ["linear"],
+                    ["exponential", 2],
                     ["zoom"],
-                    10,
-                    2,
-                    14,
-                    15
+                    11,
+                    4,
+                    19,
+                    18
                 ]
             }
         },
@@ -62,7 +62,8 @@
             "source-layer": "roads",
             "type": "line",
             "layout": {
-                "line-cap": "round"
+                "line-cap": "round",
+                "line-join": "round"
             },
             "paint": {
                 "line-color": [
@@ -117,6 +118,25 @@
                 "line-width": 5,
                 "line-color": "#f000ff"
             }
+        },
+        {
+            "id": "line-ids",
+            "source": "roads",
+            "source-layer": "roads",
+            "type": "symbol",
+            "layout": {
+                "text-field": [
+                    "format",
+                    ["get", "length"],
+                    {}
+                ],
+                "symbol-placement": "line",
+                "visibility": "none"
+            },
+            "paint": {
+
+            }
         }
-    ]
+    ],
+    "glyphs": "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf"
 }

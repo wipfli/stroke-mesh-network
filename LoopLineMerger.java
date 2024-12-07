@@ -7,6 +7,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.PriorityQueue;
 import org.locationtech.jts.algorithm.Angle;
 import org.locationtech.jts.geom.Coordinate;
@@ -19,26 +21,38 @@ import org.locationtech.jts.geom.PrecisionModel;
 import org.locationtech.jts.operation.linemerge.LineMerger;
 
 /**
- * A utility class for merging, simplifying, and connecting linestrings and removing small loops.
+ * A utility class for merging, simplifying, and connecting linestrings and
+ * removing small loops.
  * <p>
- * Compared to JTS {@link LineMerger} which only connects when 2 lines meet at a single point, this utility:
+ * Compared to JTS {@link LineMerger} which only connects when 2 lines meet at a
+ * single point, this utility:
  * <ul>
  * <li>snap-rounds points to a grid
  * <li>splits lines that intersect at a midpoint
- * <li>breaks small loops less than {@code loopMinLength} so only the shortest path connects both endpoints of the loop
- * <li>removes short "hair" edges less than {@code stubMinLength} coming off the side of longer segments
- * <li>simplifies linestrings, without touching the points shared between multiple lines to avoid breaking connections
+ * <li>breaks small loops less than {@code loopMinLength} so only the shortest
+ * path connects both endpoints of the loop
+ * <li>removes short "hair" edges less than {@code stubMinLength} coming off the
+ * side of longer segments
+ * <li>simplifies linestrings, without touching the points shared between
+ * multiple lines to avoid breaking connections
  * <li>removes any duplicate edges
- * <li>at any remaining 3+ way intersections, connect pairs of edges that form the straightest path through the node
+ * <li>at any remaining 3+ way intersections, connect pairs of edges that form
+ * the straightest path through the node
  * <li>remove any remaining edges shorter than {@code minLength}
  * </ul>
  *
- * @see <a href= "https://oliverwipfli.ch/improving-linestring-merging-in-planetiler-2024-10-30/">Improving Linestring
+ * @see <a href=
+ *      "https://oliverwipfli.ch/improving-linestring-merging-in-planetiler-2024-10-30/">Improving
+ *      Linestring
  *      Merging in Planetiler</a>
  */
 public class LoopLineMerger {
-  public record LineStringWithGroupId(LineString line, int groupId) {}
-  record CoordinatesWithGroupId(List<Coordinate> coordinates, int groupId) {}
+  public record LineStringWithGroupId(LineString line, int groupId) {
+  }
+
+  record CoordinatesWithGroupId(List<Coordinate> coordinates, int groupId) {
+  }
+
   private final List<LineStringWithGroupId> input = new ArrayList<>();
   private final List<Node> output = new ArrayList<>();
   private int numNodes = 0;
@@ -54,7 +68,8 @@ public class LoopLineMerger {
   /**
    * Sets the precision model used to snap points to a grid.
    * <p>
-   * Use {@link PrecisionModel#FLOATING} to not snap points at all, or {@code new PrecisionModel(4)} to snap to a 0.25px
+   * Use {@link PrecisionModel#FLOATING} to not snap points at all, or
+   * {@code new PrecisionModel(4)} to snap to a 0.25px
    * grid.
    */
   public LoopLineMerger setPrecisionModel(PrecisionModel precisionModel) {
@@ -66,7 +81,8 @@ public class LoopLineMerger {
   /**
    * Sets the minimum length for retaining linestrings in the resulting geometry.
    * <p>
-   * Linestrings shorter than this value will be removed. {@code minLength <= 0} disables min length removal.
+   * Linestrings shorter than this value will be removed. {@code minLength <= 0}
+   * disables min length removal.
    */
   public LoopLineMerger setMinLength(double minLength) {
     this.minLength = minLength;
@@ -76,8 +92,10 @@ public class LoopLineMerger {
   /**
    * Sets the minimum loop length for breaking loops in the merged geometry.
    * <p>
-   * Loops that are shorter than loopMinLength are broken up so that only the shortest path between loop endpoints
-   * remains. This should be {@code >= minLength}. {@code loopMinLength <= 0} disables loop removal.
+   * Loops that are shorter than loopMinLength are broken up so that only the
+   * shortest path between loop endpoints
+   * remains. This should be {@code >= minLength}. {@code loopMinLength <= 0}
+   * disables loop removal.
    */
   public LoopLineMerger setLoopMinLength(double loopMinLength) {
     this.loopMinLength = loopMinLength;
@@ -87,7 +105,8 @@ public class LoopLineMerger {
   /**
    * Sets the minimum length of stubs to be removed during processing.
    * <p>
-   * Stubs are short "hair" line segments that hang off of a longer linestring without connecting to anything else.
+   * Stubs are short "hair" line segments that hang off of a longer linestring
+   * without connecting to anything else.
    * {@code stubMinLength <= 0} disables stub removal.
    */
   public LoopLineMerger setStubMinLength(double stubMinLength) {
@@ -96,10 +115,12 @@ public class LoopLineMerger {
   }
 
   /**
-   * Sets the tolerance for simplifying linestrings during processing. Lines are simplified between endpoints to avoid
+   * Sets the tolerance for simplifying linestrings during processing. Lines are
+   * simplified between endpoints to avoid
    * breaking intersections.
    * <p>
-   * {@code tolerance = 0} still removes collinear points, so you need to set {@code tolerance <= 0} to disable
+   * {@code tolerance = 0} still removes collinear points, so you need to set
+   * {@code tolerance <= 0} to disable
    * simplification.
    */
   public LoopLineMerger setTolerance(double tolerance) {
@@ -108,7 +129,8 @@ public class LoopLineMerger {
   }
 
   /**
-   * Enables or disables stroke merging. Stroke merging connects the straightest pairs of linestrings at junctions with
+   * Enables or disables stroke merging. Stroke merging connects the straightest
+   * pairs of linestrings at junctions with
    * 3 or more attached linestrings based on the angle between them.
    */
   public LoopLineMerger setMergeStrokes(boolean mergeStrokes) {
@@ -117,7 +139,8 @@ public class LoopLineMerger {
   }
 
   /**
-   * Adds a geometry to the merger. Only linestrings from the input geometry are considered.
+   * Adds a geometry to the merger. Only linestrings from the input geometry are
+   * considered.
    */
   public LoopLineMerger add(LineStringWithGroupId lineWithGroupId) {
     input.add(lineWithGroupId);
@@ -137,7 +160,7 @@ public class LoopLineMerger {
     for (var node : output) {
       for (var edge : node.getEdges()) {
         assert edge.isLoop() || edge.to.getEdges().contains(edge.reversed) : edge.to + " does not contain " +
-          edge.reversed;
+            edge.reversed;
         for (var other : node.getEdges()) {
           if (edge != other) {
             assert edge != other.reversed : "node contained edge and its reverse " + node;
@@ -146,7 +169,7 @@ public class LoopLineMerger {
         }
       }
       assert node.getEdges().size() != 2 || node.getEdges().stream().anyMatch(Edge::isLoop) : "degree 2 node found " +
-        node;
+          node;
     }
     return true;
   }
@@ -188,7 +211,8 @@ public class LoopLineMerger {
     for (var node : output) {
       List<Edge> edges = List.copyOf(node.getEdges());
       if (edges.size() >= 2) {
-        record AngledPair(Edge a, Edge b, double angle) {}
+        record AngledPair(Edge a, Edge b, double angle) {
+        }
         List<AngledPair> angledPairs = new ArrayList<>();
         for (var i = 0; i < edges.size(); ++i) {
           var edgei = edges.get(i);
@@ -203,7 +227,8 @@ public class LoopLineMerger {
         angledPairs.sort(Comparator.comparingDouble(angledPair -> angledPair.angle));
         List<Edge> merged = new ArrayList<>();
         for (var angledPair : angledPairs.reversed()) {
-          if (merged.contains(angledPair.a) || merged.contains(angledPair.b) || angledPair.a.groupId != angledPair.b.groupId) {
+          if (merged.contains(angledPair.a) || merged.contains(angledPair.b)
+              || angledPair.a.groupId != angledPair.b.groupId) {
             continue;
           }
           mergeTwoEdges(angledPair.a.from, angledPair.a, angledPair.b);
@@ -220,21 +245,22 @@ public class LoopLineMerger {
         continue;
       }
       for (var current : List.copyOf(node.getEdges())) {
-        record HasLoop(Edge edge, double distance) {}
+        record HasLoop(Edge edge, double distance) {
+        }
         List<HasLoop> loops = new ArrayList<>();
         if (!node.getEdges().contains(current)) {
           continue;
         }
         for (var other : node.getEdges()) {
           double distance = other.length +
-            shortestDistanceAStar(other.to, current.to, current.from, loopMinLength - other.length);
+              shortestDistanceAStar(other.to, current.to, current.from, loopMinLength - other.length);
           if (distance <= loopMinLength) {
             loops.add(new HasLoop(other, distance));
           }
         }
         if (loops.size() > 1) {
           loops.sort(Comparator.comparingInt((HasLoop l) -> l.edge.groupId)
-            .thenComparingDouble((HasLoop l) -> -l.distance));
+              .thenComparingDouble((HasLoop l) -> -l.distance));
           Collections.reverse(loops);
           for (var loop : loops.subList(1, loops.size())) {
             loop.edge.remove();
@@ -246,7 +272,8 @@ public class LoopLineMerger {
 
   private double shortestDistanceAStar(Node start, Node end, Node exclude, double maxLength) {
     Map<Integer, Double> bestDistance = new HashMap<>();
-    record Candidate(Node node, double length, double minTotalLength) {}
+    record Candidate(Node node, double length, double minTotalLength) {
+    }
     PriorityQueue<Candidate> frontier = new PriorityQueue<>(Comparator.comparingDouble(Candidate::minTotalLength));
     if (exclude != start) {
       frontier.offer(new Candidate(start, 0, start.distance(end)));
@@ -274,6 +301,85 @@ public class LoopLineMerger {
       }
     }
     return Double.POSITIVE_INFINITY;
+  }
+
+  private List<List<Edge>> getRightTurnLoops() {
+    List<List<Edge>> result = new ArrayList<>();
+    Set<Edge> visited = new HashSet<>();
+    for (var node : output) {
+      for (var edge : node.getEdges()) {
+        if (visited.contains(edge)) {
+          continue;
+        }
+        var loop = getRightTurnLoop(edge);
+        if (loop.size() > 0) {
+          result.add(loop);
+          for (var visitedEdge : loop) {
+            visited.add(visitedEdge);
+          }
+        }
+      }
+    }
+    result.sort(Comparator.comparingDouble(loop -> loop.stream().mapToDouble(edge -> edge.length).sum()));
+    return result;
+  }
+
+  private List<Edge> getRightTurnLoop(Edge startEdge) {
+    if (startEdge.from.getEdges().size() == 1 && startEdge.to.getEdges().size() == 1) {
+      return new ArrayList<>();
+    }
+
+    Edge currentEdge = startEdge;
+    List<Edge> result = new ArrayList<>();
+    int MAX_DEPTH = 100;
+    int depth = 0;
+    while (true) {
+      result.add(currentEdge);
+      List<Edge> nextEdges = currentEdge.to.getEdges();
+      int index = nextEdges.indexOf(currentEdge.reversed);
+      if (index == nextEdges.size() - 1) {
+        currentEdge = nextEdges.getFirst();
+      }
+      else {
+        currentEdge = nextEdges.get(index + 1);
+      }
+      if (currentEdge.equals(startEdge)) {
+        break;
+      }
+      if (depth > MAX_DEPTH) {
+        return new ArrayList<>();
+      }
+      depth++;
+    }
+    if (loopMinLength > 0 && result.stream().mapToDouble(edge -> edge.length).sum() > loopMinLength) {
+      return new ArrayList<>();
+    }
+    return result;
+  }
+
+  private List<List<Edge>> groupByEndpoints(double maxDistance) {
+    List<List<Edge>> result = new ArrayList<>();
+    List<Edge> allEdges = new ArrayList<>();
+    for (var node : output) {
+      for (var edge : node.getEdges()) {
+        allEdges.add(edge);
+      }
+    }
+    for (int i = 0; i < allEdges.size(); ++i) {
+      var edge = allEdges.get(i);
+      List<Edge> group = new ArrayList<>();
+      group.add(edge);
+      for (int j = i + 1; j < allEdges.size(); ++j) {
+        var other = allEdges.get(j);
+        if (edge.from.distance(other.from) < maxDistance && edge.to.distance(other.to) < maxDistance) {
+          group.add(other);
+        }
+      }
+      if (group.size() > 1) {
+        result.add(group);
+      }
+    }
+    return result;
   }
 
   private void removeShortStubEdges() {
@@ -318,7 +424,7 @@ public class LoopLineMerger {
 
   private boolean isShortStubEdge(Edge edge) {
     return edge != null && !edge.removed && edge.length < stubMinLength &&
-      (edge.from.getEdges().size() == 1 || edge.to.getEdges().size() == 1 || edge.isLoop());
+        (edge.from.getEdges().size() == 1 || edge.to.getEdges().size() == 1 || edge.isLoop());
   }
 
   private void removeShortEdges() {
@@ -376,15 +482,15 @@ public class LoopLineMerger {
 
     degreeTwoMerge();
 
-    if (loopMinLength > 0.0) {
-      breakLoops();
-      degreeTwoMerge();
-    }
+    // if (loopMinLength > 0.0) {
+    //   breakLoops();
+    //   degreeTwoMerge();
+    // }
 
-    if (stubMinLength > 0.0) {
-      removeShortStubEdges();
-      // removeShortStubEdges does degreeTwoMerge internally
-    }
+    // if (stubMinLength > 0.0) {
+    //   removeShortStubEdges();
+    //   // removeShortStubEdges does degreeTwoMerge internally
+    // }
 
     if (tolerance >= 0.0) {
       simplify();
@@ -392,10 +498,10 @@ public class LoopLineMerger {
       degreeTwoMerge();
     }
 
-    if (mergeStrokes) {
-      strokeMerge();
-      degreeTwoMerge();
-    }
+    // if (mergeStrokes) {
+    //   strokeMerge();
+    //   degreeTwoMerge();
+    // }
 
     if (minLength > 0) {
       removeShortEdges();
@@ -403,13 +509,47 @@ public class LoopLineMerger {
 
     List<LineStringWithGroupId> result = new ArrayList<>();
 
+    // for (var loop : loops) {
+    //   System.out.println("");
+    //   for (var edge : loop) {
+    //     System.out.println(edge.id + (edge.main ? "" : "(R)") + " from=" + edge.from.id + " to=" + edge.to.id + " angle=" + edge.angle);
+    //     result.add(new LineStringWithGroupId(factory.createLineString(edge.coordinates.toArray(Coordinate[]::new)),
+    //           edge.groupId));
+    //   }
+    // }
+
+    if (mergeStrokes) {
+      var loops = getRightTurnLoops();
+      for (var loop : loops) {
+        loop.getFirst().remove();
+      }
+      degreeTwoMerge();
+
+      if (stubMinLength > 0.0) {
+        removeShortStubEdges();
+        // removeShortStubEdges does degreeTwoMerge internally
+      }
+    }
+
+    // var groupedByEndpoints = groupByEndpoints(loopMinLength);
+    // System.out.println("groupedByEndpoints..." + groupedByEndpoints);
+    // for (var group : groupedByEndpoints) {
+    //   for (var edge : group.subList(1, group.size())) {
+    //     // edge.remove();
+    //   }
+    // }
+    var count = 0;
     for (var node : output) {
       for (var edge : node.getEdges()) {
+        // System.out.println(edge.id + (edge.main ? "" : "(R)") + " from=" + edge.from.id + " to=" + edge.to.id + " angle=" + edge.angle);
         if (edge.main) {
-          result.add(new LineStringWithGroupId(factory.createLineString(edge.coordinates.toArray(Coordinate[]::new)), edge.groupId));
+          result.add(new LineStringWithGroupId(factory.createLineString(edge.coordinates.toArray(Coordinate[]::new)),
+              edge.groupId));
+          count++;
         }
       }
     }
+    System.out.println("count=" + count);
 
     return result;
   }
@@ -486,7 +626,8 @@ public class LoopLineMerger {
       for (int i = 0; i < coordinateSequence.size(); i++) {
         Coordinate coordinate = coordinateSequence.get(i);
         if (i > 0 && i < coordinateSequence.size() - 1 && nodeCounts.get(coordinate) > 1) {
-          result.add(new CoordinatesWithGroupId(coordinateSequence.subList(start, i + 1), coordinatesWithGroupId.groupId()));
+          result.add(
+              new CoordinatesWithGroupId(coordinateSequence.subList(start, i + 1), coordinatesWithGroupId.groupId()));
           start = i;
         }
       }
@@ -514,6 +655,7 @@ public class LoopLineMerger {
         }
       }
       this.edge.add(edge);
+      this.edge.sort((e1, e2) -> Double.compare(e1.angle, e2.angle));
     }
 
     List<Edge> getEdges() {
@@ -543,10 +685,10 @@ public class LoopLineMerger {
     final double length;
     final boolean main;
     boolean removed;
+    final double angle;
 
     Edge reversed;
     List<Coordinate> coordinates;
-
 
     private Edge(int groupId, Node from, Node to, List<Coordinate> coordinateSequence, double length) {
       this(numEdges, groupId, from, to, length, coordinateSequence, true, null);
@@ -554,7 +696,8 @@ public class LoopLineMerger {
       numEdges++;
     }
 
-    private Edge(int id, int groupId, Node from, Node to, double length, List<Coordinate> coordinates, boolean main, Edge reversed) {
+    private Edge(int id, int groupId, Node from, Node to, double length, List<Coordinate> coordinates, boolean main,
+        Edge reversed) {
       this.id = id;
       this.groupId = groupId;
       this.from = from;
@@ -563,6 +706,8 @@ public class LoopLineMerger {
       this.coordinates = coordinates;
       this.main = main;
       this.reversed = reversed;
+      assert coordinates.size() >= 2;
+      angle = Angle.angle(coordinates.get(0), coordinates.get(1));
     }
 
     void remove() {
@@ -575,12 +720,7 @@ public class LoopLineMerger {
 
     double angleTo(Edge other) {
       assert from.equals(other.from);
-      assert coordinates.size() >= 2;
-
-      double angle = Angle.angle(coordinates.get(0), coordinates.get(1));
-      double angleOther = Angle.angle(other.coordinates.get(0), other.coordinates.get(1));
-
-      return Math.abs(Angle.normalize(angle - angleOther));
+      return Math.abs(Angle.normalize(angle - other.angle));
     }
 
     double length() {
@@ -596,7 +736,7 @@ public class LoopLineMerger {
 
     boolean isCollapsed() {
       return coordinates.size() < 2 ||
-        (coordinates.size() == 2 && coordinates.getFirst().equals(coordinates.getLast()));
+          (coordinates.size() == 2 && coordinates.getFirst().equals(coordinates.getLast()));
     }
 
     boolean isLoop() {
@@ -606,7 +746,7 @@ public class LoopLineMerger {
     @Override
     public String toString() {
       return "Edge{" + from.id + "->" + to.id + (main ? "" : "(R)") + ": [" + coordinates.getFirst() + ".." +
-        coordinates.getLast() + "], length=" + length + ", groupId=" + groupId + '}';
+          coordinates.getLast() + "], length=" + length + ", groupId=" + groupId + ", angle=" + angle + '}';
     }
   }
 }
