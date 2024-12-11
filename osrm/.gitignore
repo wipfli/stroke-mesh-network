@@ -1,2 +1,3 @@
 building-coordinates.json
-output.json
+output*.json
+__pycache__

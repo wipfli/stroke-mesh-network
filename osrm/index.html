@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MapLibre LineString</title>
-  <link href="https://unpkg.com/maplibre-gl@5.0.0-pre.8/dist/maplibre-gl.css" rel="stylesheet" />
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
   <script src="https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js"></script>
 
   <style>
@@ -22,7 +22,7 @@
 </head>
 <body>
   <div id="map"></div>
-  <script src="https://unpkg.com/maplibre-gl@5.0.0-pre.8/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
   <script>
     // Initialize the map
     const protocol = new pmtiles.Protocol();
@@ -50,12 +50,13 @@
         type: 'line',
         source: 'line-source',
         'source-layer': 'output',
+        filter: [">=", ["get", "visits"], 0],
         layout: {
           // 'line-sort-key': ['get', 'frequency'],
           'line-cap': 'round'
         },
         paint: {
-          'line-color': 'black',
+          'line-color': '#0984e3',
           'line-width': 1,
           'line-opacity': 1.0,
         }
@@ -66,12 +67,14 @@
         source: 'line-source',
         'source-layer': 'output',
         minzoom: 15,
+        filter: [">=", ["get", "visits"], 0],
         layout: {
-          'text-field': ["get", "visits"],
+          'symbol-sort-key': ["get", "visits"],
+          'text-field': ["get", "after_list"],
           'text-font': ['Noto Sans Regular'],
           'symbol-placement': 'line',
           'text-anchor': 'left',
-          'text-offset': [0, 0.6],
+          'text-offset': [0, 1],
         },
         paint: {
         }
