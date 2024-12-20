@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MapLibre Map with Dropdown</title>
+  <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+    #map {
+      width: 100%;
+      height: 100vh;
+    }
+    .map-overlay {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background-color: white;
+      padding: 10px;
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="map-overlay">
+    <select id="dropdown">
+      <option value="0">No filtering</option>
+      <option value="10">10 visits</option>
+      <option value="20">20 visits</option>
+      <option value="30">30 visits</option>
+      <option value="40">40 visits</option>
+      <option value="50">50 visits</option>
+      <option value="60">60 visits</option>
+      <option value="70">70 visits</option>
+      <option value="80">80 visits</option>
+      <option value="90">90 visits</option>
+      <option value="100">100 visits</option>
+      <option value="eroads">E-Road Network</option>
+    </select>
+  </div>
+
+  <script>
+    const protocol = new pmtiles.Protocol();
+    maplibregl.addProtocol('pmtiles', protocol.tile);
+    // Initialize the MapLibre map
+    const map = new maplibregl.Map({
+      container: 'map',
+      hash: 'map',
+      style: 'style.json', // Sample style
+      center: [9.338, 45.247], // [longitude, latitude]
+      zoom: 6
+    });
+
+    map.on('load', async () => {
+      map.addSource('line-source', {
+        type: 'vector',
+        url: "pmtiles://https://pub-cf7f11e26ace447db8f7215b61ac0eae.r2.dev/routing-roads-italy/0.pmtiles"
+      });
+
+      map.addLayer({
+        id: 'line-layer',
+        type: 'line',
+        source: 'line-source',
+        'source-layer': 'output',
+        paint: {
+          'line-color': '#0984e3',
+          'line-width': 1,
+          'line-opacity': 1.0,
+        }
+      });
+
+      map.addLayer({
+        id: 'line-layer-eroads',
+        type: 'line',
+        source: 'line-source',
+        'source-layer': 'lines',
+        paint: {
+          'line-color': '#0984e3',
+          'line-width': 1,
+          'line-opacity': 1.0,
+        }
+      });
+
+      map.addLayer({
+        id: 'line-label-layer',
+        type: 'symbol',
+        source: 'line-source',
+        'source-layer': 'output',
+        minzoom: 15,
+        layout: {
+          'text-field': ["get", "visits"],
+          'text-font': ['Noto Sans Regular'],
+          'symbol-placement': 'line',
+          'text-anchor': 'left',
+          'text-offset': [0, 1],
+        },
+        paint: {
+        }
+      });
+    });
+
+    // Handle dropdown change event
+    const dropdown = document.getElementById('dropdown');
+    dropdown.addEventListener('change', (event) => {
+      map.getSource('line-source').setUrl(`pmtiles://https://pub-cf7f11e26ace447db8f7215b61ac0eae.r2.dev/routing-roads-italy/${event.target.value}.pmtiles`);
+    });
+  </script>
+</body>
+</html>

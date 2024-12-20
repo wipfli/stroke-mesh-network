@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,18 +9,21 @@
   <script src="https://unpkg.com/pmtiles@3.0.6/dist/pmtiles.js"></script>
 
   <style>
-    body, html {
+    body,
+    html {
       margin: 0;
       padding: 0;
       width: 100%;
       height: 100%;
     }
+
     #map {
       height: 100%;
       width: 100%;
     }
   </style>
 </head>
+
 <body>
   <div id="map"></div>
   <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
@@ -43,14 +47,18 @@
       map.addSource('line-source', {
         type: 'vector',
         url: "pmtiles://http://localhost:3000/data/output.pmtiles"
+        // url: "pmtiles://http://144.76.45.111:8081/data/output.pmtiles"
       });
 
+      const filter = true; // [">", ["get", "visits"], 10];
       map.addLayer({
         id: 'line-layer',
         type: 'line',
         source: 'line-source',
         'source-layer': 'output',
-        filter: [">=", ["get", "visits"], 0],
+        filter,
+        // filter: [">=", ["get", "visits"], 3],
+        // filter: ["in", ["get", "edge_id"], ["literal", [30242]]],
         layout: {
           // 'line-sort-key': ['get', 'frequency'],
           'line-cap': 'round'
@@ -62,15 +70,55 @@
         }
       });
       map.addLayer({
+        id: 'circle-layer',
+        type: 'circle',
+        source: 'line-source',
+        'source-layer': 'output',
+        filter: ["==", "$type", "Point"],
+        layout: { visibility: "none" },
+        minzoom: 13,
+        paint: {
+          'circle-color': 'black',
+          'circle-radius': 2,
+        }
+      });
+      map.addLayer({
         id: 'line-label-layer',
         type: 'symbol',
         source: 'line-source',
         'source-layer': 'output',
         minzoom: 15,
-        filter: [">=", ["get", "visits"], 0],
+        filter,
         layout: {
-          'symbol-sort-key': ["get", "visits"],
-          'text-field': ["get", "after_list"],
+          // 'symbol-sort-key': ["get", "visits"],
+          'text-field': [
+            "concat",
+            [
+              "to-string",
+              [
+                "/",
+                [
+                  "round",
+                  [
+                    "*",
+                    [
+                      "/",
+                      ["get", "visits"],
+                      ["^", 10, ["floor", ["log10", ["abs", ["get", "visits"]]]]]
+                    ],
+                    1000
+                  ]
+                ],
+                1000
+              ]
+            ],
+            "e",
+            [
+              "to-string",
+              ["floor", ["log10", ["abs", ["get", "visits"]]]]
+            ]
+          ]
+          ,
           'text-font': ['Noto Sans Regular'],
           'symbol-placement': 'line',
           'text-anchor': 'left',
@@ -82,4 +130,5 @@
     });
   </script>
 </body>
+
 </html>

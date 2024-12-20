@@ -2,6 +2,7 @@ import requests
 import random
 import json
 import math
+import time
 
 class Coordinate(tuple):
     def __new__(cls, lat: float, lon: float):
@@ -17,6 +18,32 @@ class Coordinate(tuple):
 
     def __repr__(self):
         return f"Coordinate(lat={self.lat}, lon={self.lon})"
+
+class BBox(tuple):
+    def __new__(cls, min_lon: float, min_lat: float, max_lon: float, max_lat: float):
+        return super().__new__(cls, (min_lon, min_lat, max_lon, max_lat))
+    
+    @property
+    def min_lon(self):
+        return self[0]
+    
+    @property
+    def min_lat(self):
+        return self[1]
+    
+    @property
+    def max_lon(self):
+        return self[2]
+    
+    @property
+    def max_lat(self):
+        return self[3]
+    
+    def __repr__(self):
+        return f"BBox(min_lon={self.min_lon}, min_lat={self.min_lat}, max_lon={self.max_lon}, max_lat={self.max_lat})"
+    
+    def contains(self, coordinate: Coordinate):
+        return self.min_lon < coordinate.lon < self.max_lon and self.min_lat < coordinate.lat < self.max_lat
 
 class Router:
     def __init__(self, start, end, osrm_url="http://localhost:5000"):
@@ -35,11 +62,13 @@ class Router:
         }
         response = requests.get(url, params=params)
         route = response.json()
+        distance = 0
         if "routes" in route:
+            distance = route["routes"][0]["distance"]
             for c in route["routes"][0]["geometry"]["coordinates"]:
                 result.append(Coordinate(lon=c[0], lat=c[1]))
         
-        return result
+        return result, distance
 
 # router = Router(
 #     start=Coordinate(
@@ -69,6 +98,27 @@ def get_building_location_pairs(n):
 
     return result
 
+def get_village_location_pairs(n: int, bbox: BBox):
+    result = []
+    with open("village-coordinates.json") as f:
+        villages = [Coordinate(lon=c[0], lat=c[1]) for c in json.load(f)]
+    
+    villages = [c for c in villages if bbox.contains(c)]
+    
+    while len(result) < n:
+        selection1 = random.choices(villages, k=1000)
+        selection2 = random.choices(villages, k=1000)
+
+        for start, end  in zip(selection1, selection2):
+            distance = haversine(start, end)
+            min_distance = 100_000
+            if min_distance < distance:
+                result.append([start, end])
+                if len(result) == n:
+                    break
+
+    return result
+
 
 def haversine(start: Coordinate, end: Coordinate):
     lat1, lon1, lat2, lon2 = map(math.radians, [start.lat, start.lon, end.lat, end.lon])
@@ -84,49 +134,83 @@ def haversine(start: Coordinate, end: Coordinate):
 
     return distance # meters
 
-# lat1, lon1 = 47.36705342, 8.54085504  # Berlin
-# start = Coordinate(lat=lat1, lon=lon1)
-# lat2, lon2 = 47.36743532, 8.54238649   # Paris
-# end = Coordinate(lat=lat2, lon=lon2)
-
-# distance = haversine(start, end)
-# print(f"The distance between Berlin and Paris is {distance:.2f} m")
+# coordinates = [
+#     [
+#         8.534625,
+#         47.392648
+#     ],
+#     [
+#         8.534615,
+#         47.392657
+#     ],
+#     [
+#         8.534522,
+#         47.392744
+#     ]
+# ]
+# for i in range(len(coordinates) - 1):
+#     lon1, lat1 = coordinates[i]
+#     lon2, lat2 = coordinates[i + 1]
+#     start = Coordinate(lat=lat1, lon=lon1)
+#     end = Coordinate(lat=lat2, lon=lon2)
+#     distance = haversine(start, end)
+#     print(distance)
 # exit(1)
 
 class Node:
     def __init__(self, coordinate):
         self.coordinate = coordinate
-        self.edge_map = {} # end coordinate -> edge
-    
-    def get_edge(self, end):
-        return self.edge_map.get(end, None)
+        self.edges = []
     
     def add_edge(self, edge):
-        self.edge_map[edge.end_node.coordinate] = edge
+        for other in self.edges:
+            if other.coordinates == edge.coordinates:
+                return
+        self.edges.append(edge)
+    
+    def remove_edge(self, edge):
+        index = -1
+        for i, other in enumerate(self.edges):
+            if other.coordinates == edge.coordinates:
+                index = i
+                break
+        if index > -1:
+            self.edges.pop(index)
 
     def __repr__(self):
-        return f"Node(coordinate={self.coordinate}, edges={list(self.edge_map.values())})"
+        return f"Node(coordinate={self.coordinate}, edges={self.edges})"
 
 class Edge:
     _id_counter = 0
-    def __init__(self, start_node, end_node, coordinates):
+
+    def __init__(self, start_node, end_node, coordinates, length, main=True, reversed_edge=None):
+        self.id = Edge._id_counter
         self.start_node = start_node
         self.end_node = end_node
-        self.visits = 0
-        self.after_end_map = {} # next coordinate after end -> count
+        self.length = length
         self.coordinates = coordinates
-        self.length = sum([haversine(coordinates[i], coordinates[i + 1]) for i in range(len(coordinates) - 1)])
-        self.id = Edge._id_counter
-        Edge._id_counter += 1
+        self.main = main
+        self.reversed = reversed_edge
+        self.visits = 0
+        self.removed = False
 
-    def visit(self):
-        self.visits += 1
+        if main:
+            reversed_coordinates = list(reversed(coordinates))
+            self.reversed = Edge(end_node, start_node, reversed_coordinates, length, main=False, reversed_edge=self)
+            Edge._id_counter += 1
     
-    def bump_after_end(self, coordinate):
-        if coordinate not in self.after_end_map:
-            self.after_end_map[coordinate] = 0
-        self.after_end_map[coordinate] += 1
+    def remove(self):
+        if not self.removed:
+            self.start_node.remove_edge(self)
+            self.end_node.remove_edge(self.reversed)
+            self.removed = True
 
+    def is_loop(self):
+        return self.start_node.coordinate == self.end_node.coordinate
+
+    def is_stub(self):
+        return not self.removed and (len(self.start_node.edges) == 1 or len(self.end_node.edges) == 1 or self.is_loop())
+    
     def __hash__(self):
         return hash(tuple(self.coordinates))
     
@@ -145,20 +229,25 @@ def to_geojson(node_map):
     features = []
 
     for node in node_map.values():
-        for edge in node.edge_map.values():
-            after_list = []
-            for coordinate in edge.after_end_map:
-                edge_id = edge.end_node.get_edge(coordinate).id
-                count = edge.after_end_map[coordinate]
-                after_list += [edge_id, count]
+        # feature = {
+        #     "type": "Feature",
+        #     "properties": {
+        #         "num_edges": len(node.edges),              
+        #     },
+        #     "geometry": {
+        #         "type": "Point",
+        #         "coordinates": list(node.coordinate)
+        #     }
+        # }
+        # features.append(feature)
+        for edge in node.edges:
 
             feature = {
                 "type": "Feature",
                 "properties": {
                     "edge_id": edge.id,
                     "length": edge.length,
-                    "visits": edge.visits,
-                    "after_list": json.dumps([edge.id, edge.visits] + after_list),                
+                    "visits": edge.visits,            
                 },
                 "geometry": {
                     "type": "LineString",
@@ -172,105 +261,57 @@ def to_geojson(node_map):
         "features": features
     }
 
-def get_sorted_edges(node_map):
-    result = []
-    for node in node_map.values():
-        for edge in node.edge_map.values():
-            result.append(edge)
-
-    result.sort(key=lambda edge: -edge.visits)
-    return result
-
-# def edges_to_geojson(edges):
-#     features = []
-
-#     for edge in edges:
-#         after_list = []
-#         for coordinate in edge.after_end_map:
-#             edge_id = edge.end_node.get_edge(coordinate).id
-#             count = edge.after_end_map[coordinate]
-#             after_list += [edge_id, count]
-
-#         feature = {
-#             "type": "Feature",
-#             "properties": {
-#                 "edge_id": edge.id,
-#                 "length": edge.length,
-#                 "visits": edge.visits,
-#                 "after_list": json.dumps([edge.id, edge.visits] + after_list),                
-#             },
-#             "geometry": {
-#                 "type": "LineString",
-#                 "coordinates": [list(c) for c in edge.coordinates]
-#             }
-#         }
-#         features.append(feature)
-
-#     return {
-#         "type": "FeatureCollection",
-#         "features": features
-#     }
-
-def simulate(n, reverse_routes=False):
-    start_end_pairs = get_building_location_pairs(n=n)
-
+def simulate(n, bbox):
+    print("getting location pairs...", flush=True)
+    start_end_pairs = get_village_location_pairs(n=n, bbox=bbox)
+    print("done.", flush=True)
     node_map = {} # Coordinate -> Node
+    ii = 0
     for start, end in start_end_pairs:
+        if ii % 10 == 0:
+            print(ii, flush=True)
+        ii += 1
         router = Router(start, end)
-        original_route = router.get_route()
-        reversed_route = list(reversed(original_route))
-        for route in [original_route, reversed_route]:
-            for i in range(len(route) - 1):
-                start = route[i]
-                end = route[i + 1]     
+        route, distance = router.get_route()
+        # reversed_route = list(reversed(original_route))
 
-                start_node = get_node(node_map, start)
-                end_node = get_node(node_map, end)
+        for i in range(len(route) - 1):
+            start = route[i]
+            end = route[i + 1]     
 
-                edge = start_node.get_edge(end)
-                if edge is None:
-                    edge = Edge(start_node, end_node, [start, end])
-                    start_node.add_edge(edge)
-                edge.visit()
+            start_node = get_node(node_map, start)
+            end_node = get_node(node_map, end)
 
-                after_end = route[i + 2] if i + 2 < len(route) else None
-                if after_end is not None:
-                    edge.bump_after_end(after_end)
-
-            if not reverse_routes:
-                break
+            edge = None
+            for existing_edge in start_node.edges:
+                if existing_edge.end_node.coordinate == end_node.coordinate:
+                    edge = existing_edge
+                    break
+            if edge is None:
+                coordinates = [start, end]
+                length = haversine(start, end)
+                edge = Edge(start_node, end_node, coordinates, length)
+                start_node.add_edge(edge)
+                end_node.add_edge(edge.reversed)
+            edge.visits += 1
+            edge.reversed.visits += 1
     
     return node_map
 
-node_map = simulate(n=1000, reverse_routes=True)
-geojson = to_geojson(node_map)
+if __name__ == '__main__':
+    tic = time.time()
 
-with open('output.json', 'w') as f:
-    json.dump(geojson, f, indent=2)
+    bbox = BBox(6.44,42.62,13.41,47.29) # N Italy large
 
-# sorted_edges = get_sorted_edges(node_map)
+    print("simulating...", flush=True)
 
-# for edge in sorted_edges:
-#     print(edge.id, edge.visits, edge.coordinates)
-# edge = sorted_edges[2]
+    node_map = simulate(n=10, bbox=bbox)
 
-# removed = set({})
-# edges = []
-# last_visits = edge.visits
+    print("to_geojson...", flush=True)
+    geojson = to_geojson(node_map)
 
-# while True:
-#     # if edge.visits > last_visits:
-#     #     break
-#     last_visits = edge.visits
-#     if edge.id in removed:
-#         break
-#     removed.add(edge.id)
-#     edges.append(edge)
-#     if edge.after_end_map == {}:
-#         break
-#     after_end = max(edge.after_end_map, key=edge.after_end_map.get)
-#     edge = edge.end_node.get_edge(after_end)
-
-# geojson = edges_to_geojson(edges)
-# with open('output.json', 'w') as f:
-#     json.dump(geojson, f, indent=2)
+    print("writing...", flush=True)
+    with open('output.json', 'w') as f:
+        json.dump(geojson, f)
+    
+    print("router.py", int(time.time() - tic), "s")
