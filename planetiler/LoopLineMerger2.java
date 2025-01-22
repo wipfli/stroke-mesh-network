@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
@@ -37,9 +39,9 @@ import org.locationtech.jts.operation.linemerge.LineMerger;
  *      Merging in Planetiler</a>
  */
 public class LoopLineMerger2 {
-  record LineStringWithVisits(LineString line, double visits) {}
-  record CoordinatesWithVisits(List<Coordinate> coordinates, double visits) {}
-  private final List<LineStringWithVisits> input = new ArrayList<>();
+  record LineStringWithVisitsAndWay(LineString line, double visits, long wayId) {}
+  record CoordinatesWithVisitsAndWay(List<Coordinate> coordinates, double visits, long wayId) {}
+  private final List<LineStringWithVisitsAndWay> input = new ArrayList<>();
   private final List<Node> output = new ArrayList<>();
   private int numNodes = 0;
   private int numEdges = 0;
@@ -125,10 +127,10 @@ public class LoopLineMerger2 {
   /**
    * Adds a geometry to the merger. Only linestrings from the input geometry are considered.
    */
-  public LoopLineMerger2 add(Geometry geometry, double visits) {
+  public LoopLineMerger2 add(Geometry geometry, double visits, long wayId) {
     geometry.apply((GeometryComponentFilter) component -> {
       if (component instanceof LineString lineString) {
-        input.add(new LineStringWithVisits(lineString, visits));
+        input.add(new LineStringWithVisitsAndWay(lineString, visits, wayId));
       }
     });
     return this;
@@ -192,6 +194,10 @@ public class LoopLineMerger2 {
     if (a.to != b.to) {
       b.to.addEdge(c.reversed);
     }
+    c.wayIds.addAll(a.wayIds);
+    c.wayIds.addAll(b.wayIds);
+    c.reversed.wayIds.addAll(a.wayIds);
+    c.reversed.wayIds.addAll(b.wayIds);
     return c;
   }
 
@@ -477,6 +483,16 @@ public class LoopLineMerger2 {
     return result;
   }
 
+  public List<Long> getMergedWayIds() {
+    Set<Long> result = new HashSet<>();
+    for (var node : output) {
+      for (var edge : node.getEdges()) {
+        result.addAll(edge.wayIds);
+      }
+    }
+    return new ArrayList<>(result);
+  }
+
   private static double length(List<Coordinate> edge) {
     Coordinate last = null;
     double length = 0;
@@ -489,10 +505,10 @@ public class LoopLineMerger2 {
     return length;
   }
 
-  private void buildNodes(List<CoordinatesWithVisits> edges) {
+  private void buildNodes(List<CoordinatesWithVisitsAndWay> edges) {
     Map<Coordinate, Node> nodes = new HashMap<>();
-    for (var coordinateSequenceWithVisits : edges) {
-      var coordinateSequence = coordinateSequenceWithVisits.coordinates;
+    for (var coordinateSequenceWithVisitsAndWay : edges) {
+      var coordinateSequence = coordinateSequenceWithVisitsAndWay.coordinates;
       Coordinate first = coordinateSequence.getFirst();
       Node firstNode = nodes.get(first);
       if (firstNode == null) {
@@ -511,8 +527,9 @@ public class LoopLineMerger2 {
 
       double length = length(coordinateSequence);
 
-      Edge edge = new Edge(firstNode, lastNode, coordinateSequence, length, coordinateSequenceWithVisits.visits);
-
+      Edge edge = new Edge(firstNode, lastNode, coordinateSequence, length, coordinateSequenceWithVisitsAndWay.visits);
+      edge.wayIds.add(coordinateSequenceWithVisitsAndWay.wayId);
+      edge.reversed.wayIds.add(coordinateSequenceWithVisitsAndWay.wayId);
       firstNode.addEdge(edge);
       if (firstNode != lastNode) {
         lastNode.addEdge(edge.reversed);
@@ -520,11 +537,11 @@ public class LoopLineMerger2 {
     }
   }
 
-  private List<CoordinatesWithVisits> nodeLines(List<LineStringWithVisits> input) {
+  private List<CoordinatesWithVisitsAndWay> nodeLines(List<LineStringWithVisitsAndWay> input) {
     Map<Coordinate, Integer> nodeCounts = new HashMap<>();
-    List<CoordinatesWithVisits> coordsWithVisits = new ArrayList<>(input.size());
-    for (var lineStringWithVisits : input) {
-      var line = lineStringWithVisits.line;
+    List<CoordinatesWithVisitsAndWay> coordsWithVisitsAndWay = new ArrayList<>(input.size());
+    for (var lineStringWithVisitsAndWay : input) {
+      var line = lineStringWithVisitsAndWay.line;
       var coordinateSequence = line.getCoordinateSequence();
       List<Coordinate> snapped = new ArrayList<>();
       Coordinate last = null;
@@ -538,24 +555,24 @@ public class LoopLineMerger2 {
         last = current;
       }
       if (snapped.size() >= 2) {
-        coordsWithVisits.add(new CoordinatesWithVisits(snapped, lineStringWithVisits.visits));
+        coordsWithVisitsAndWay.add(new CoordinatesWithVisitsAndWay(snapped, lineStringWithVisitsAndWay.visits, lineStringWithVisitsAndWay.wayId));
       }
     }
 
-    List<CoordinatesWithVisits> result = new ArrayList<>(input.size());
-    for (var coordinateSequenceWithVisits : coordsWithVisits) {
-      var coordinateSequence = coordinateSequenceWithVisits.coordinates;
+    List<CoordinatesWithVisitsAndWay> result = new ArrayList<>(input.size());
+    for (var coordinateSequenceWithVisitsAndWay : coordsWithVisitsAndWay) {
+      var coordinateSequence = coordinateSequenceWithVisitsAndWay.coordinates;
       int start = 0;
       for (int i = 0; i < coordinateSequence.size(); i++) {
         Coordinate coordinate = coordinateSequence.get(i);
         if (i > 0 && i < coordinateSequence.size() - 1 && nodeCounts.get(coordinate) > 1) {
-          result.add(new CoordinatesWithVisits(coordinateSequence.subList(start, i + 1), coordinateSequenceWithVisits.visits));
+          result.add(new CoordinatesWithVisitsAndWay(coordinateSequence.subList(start, i + 1), coordinateSequenceWithVisitsAndWay.visits, coordinateSequenceWithVisitsAndWay.wayId));
           start = i;
         }
       }
       if (start < coordinateSequence.size()) {
         var sublist = start == 0 ? coordinateSequence : coordinateSequence.subList(start, coordinateSequence.size());
-        result.add(new CoordinatesWithVisits(sublist, coordinateSequenceWithVisits.visits));
+        result.add(new CoordinatesWithVisitsAndWay(sublist, coordinateSequenceWithVisitsAndWay.visits, coordinateSequenceWithVisitsAndWay.wayId));
       }
     }
     return result;
@@ -609,6 +626,8 @@ public class LoopLineMerger2 {
 
     Edge reversed;
     List<Coordinate> coordinates;
+
+    final List<Long> wayIds = new ArrayList<>();
 
 
     private Edge(Node from, Node to, List<Coordinate> coordinateSequence, double length, double visits) {

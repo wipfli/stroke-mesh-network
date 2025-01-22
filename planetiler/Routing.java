@@ -42,7 +42,7 @@ public class Routing {
                 double endLon = Double.parseDouble(values[4]) / 1e7;
                 long visits = Long.parseLong(values[5]);
 
-                merger.add(linestring(startLat, startLon, endLat, endLon), visits);
+                merger.add(linestring(startLat, startLon, endLat, endLon), visits, wayId);
                 // int deadEnd = Integer.parseInt(values[6]);
                 // System.out.println(wayId + " " + startLat + " " + startLon);
             }
@@ -54,18 +54,27 @@ public class Routing {
         merger.setLoopMinLength(0.001);
         merger.setStubMinLength(0.1);
 
-        var merger2 = new LoopLineMerger2();
-        for (var mergedLine : merger.getMergedLineStrings()) {
-            merger2.add(mergedLine, 1);
-        }
-
-        merger2.setPrecisionModel(new PrecisionModel());
-        // merger2.setLoopMinLength(0.2);
-        // merger2.setStubMinLength(0.1);
-        // merger2.setTolerance(0.005);
-
-        for (var linestring : merger2.getMergedLineStrings()) {
+        for (var linestring : merger.getMergedLineStrings()) {
             System.out.println(linestring);
         }
+
+        // var merger2 = new LoopLineMerger2();
+        // for (var mergedLine : merger.getMergedLineStrings()) {
+        //     merger2.add(mergedLine, 1, 1);
+        // }
+
+        // merger2.setPrecisionModel(new PrecisionModel());
+        // // merger2.setLoopMinLength(0.2);
+        // // merger2.setStubMinLength(0.1);
+        // // merger2.setTolerance(0.002);
+
+        // for (var linestring : merger2.getMergedLineStrings()) {
+        //     System.out.println(linestring);
+        // }
+
+        // merger.getMergedLineStrings();
+        // for (var wayId : merger.getMergedWayIds()) {
+        //     System.out.println(wayId);
+        // }
     }
 }
