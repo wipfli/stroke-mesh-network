@@ -144,8 +144,12 @@ public class LoopLineMerger4 {
   }
 
   private void degreeTwoMerge() {
+    degreeTwoMerge(0.0);
+  }
+
+  private void degreeTwoMerge(double minAngle) {
     for (var node : output) {
-      degreeTwoMerge(node);
+      degreeTwoMerge(node, minAngle);
     }
     output.removeIf(node -> node.getEdges().isEmpty());
     assert valid();
@@ -171,11 +175,15 @@ public class LoopLineMerger4 {
   }
 
   private Edge degreeTwoMerge(Node node) {
+    return degreeTwoMerge(node, 0.0);
+  }
+
+  private Edge degreeTwoMerge(Node node, double minAngle) {
     if (node.getEdges().size() == 2) {
       Edge a = node.getEdges().getFirst();
       Edge b = node.getEdges().get(1);
       // if one side is a loop, degree is actually > 2
-      if (!a.isLoop() && !b.isLoop() && a.minZoom == b.minZoom && a.active == b.active) {
+      if (!a.isLoop() && !b.isLoop() && a.minZoom == b.minZoom && a.active == b.active && a.angleTo(b) >= minAngle) {
         return mergeTwoEdges(node, a, b);
       }
     }
@@ -494,68 +502,39 @@ public class LoopLineMerger4 {
     output.clear();
     var edges = nodeLines(input);
     buildNodes(edges);
-
-    degreeTwoMerge();
-
-    if (minVisits > 0) {
-      double targetMinVisits = minVisits;
-      minVisits = 1e6;
-      removeByVisits();
-      minVisits = targetMinVisits;
-    }
-    
-    if (loopMinLength > 0.0) {
-      breakLoops();
-      degreeTwoMerge();
-    }
-
-    if (minVisits > 0) {
-      removeByVisits();
-    }
-
-    if (stubMinLength > 0.0) {
-      removeShortStubEdges();
-      // removeShortStubEdges does degreeTwoMerge internally
-    }
-
-    if (tolerance >= 0.0) {
-      simplify();
-      removeDuplicatedEdges();
-      degreeTwoMerge();
-    }
-
-    if (mergeStrokes) {
-      strokeMerge();
-      degreeTwoMerge();
-    }
-
-    if (minLength > 0) {
-      removeShortEdges();
-    }
-
-    var activeDeadEnds = findActiveDeadEnds();
-    for (var node : activeDeadEnds) {
-      reconnect(node);
+    double minAngle = Math.PI / 3; // 60 degrees
+    degreeTwoMerge(minAngle);
+    var nodesToReconnect = findNodesToReconnect(minAngle);
+    for (var node : nodesToReconnect) {
+      reconnect(node, minAngle);
     }
   }
 
-  public List<Node> findActiveDeadEnds() {
+  public List<Node> findNodesToReconnect(double minAngle) {
     List<Node> result = new ArrayList<>();
     for (var node : output) {
       var activeEdges = node.getEdges().stream().filter(edge -> edge.active).collect(Collectors.toList());
       if (activeEdges.size() == 1) {
+        // node with one active edge, dead-end
+        result.add(node);
+      }
+      else if (activeEdges.size() == 2 && activeEdges.getFirst().angleTo(activeEdges.getLast()) <= minAngle) {
+        // node with two active edges ending in sharp angle
         result.add(node);
       }
     }
     return result;
   }
 
-  public void reconnect(Node startNode) {
+  public void reconnect(Node startNode, double minAngle) {
     Node node = startNode;
 
     while (true) {
       var activeEdges = node.getEdges().stream().filter(edge -> edge.active).collect(Collectors.toList());
-      if (activeEdges.size() != 1) {
+      if (activeEdges.size() > 2) {
+        break;
+      }
+      if (activeEdges.size() == 2 && activeEdges.getFirst().angleTo(activeEdges.getLast()) > minAngle) {
         break;
       }
       var inactiveEdges = node.getEdges().stream().filter(edge -> !edge.active).collect(Collectors.toList());
@@ -584,6 +563,7 @@ public class LoopLineMerger4 {
     for (var node : output) {
       for (var edge : node.getEdges()) {
         if (edge.active) {
+          // System.out.println(factory.createLineString(edge.coordinates.toArray(Coordinate[]::new)));
           result.addAll(edge.wayIds);
         }
       }

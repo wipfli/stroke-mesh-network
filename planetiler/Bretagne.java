@@ -35,7 +35,6 @@ public class Bretagne implements Profile {
         String defaultArea = "bretagne";
         System.out.println("get semantic minzoom...");
 
-
         myProfile.wayIdToSemanticMinZoom = SemanticMinZoom.getMinZoomMap(args, defaultArea);
 
         System.out.println("get routing minzoom...");
@@ -61,7 +60,7 @@ public class Bretagne implements Profile {
             if (wayIdToSemanticMinZoom.keySet().contains(sourceFeature.id())) {
                 int semanticMinZoom = wayIdToSemanticMinZoom.get(sourceFeature.id());
                 if (semanticMinZoom <= 6) {
-                    features.line("semantic")
+                    features.line("waterway")
                         .setAttr("semanticMinZoom", semanticMinZoom)
                         .setAttr("highway", sourceFeature.getTag("highway"))
                         .setMinZoom(semanticMinZoom)
@@ -70,15 +69,15 @@ public class Bretagne implements Profile {
                 }
             }
 
-            if (wayIdToRoutingMinZoom.keySet().contains(sourceFeature.id())) {
-                int routingMinZoom = wayIdToRoutingMinZoom.get(sourceFeature.id());
-                features.line("lines-routing")
-                    .setAttr("routingMinZoom", routingMinZoom)
-                    .setAttr("highway", sourceFeature.getTag("highway"))
-                    .setMinZoom(routingMinZoom)
-                    .setMinPixelSize(0)
-                    .setPixelTolerance(0);  
-            }
+            // if (wayIdToRoutingMinZoom.keySet().contains(sourceFeature.id())) {
+            //     int routingMinZoom = wayIdToRoutingMinZoom.get(sourceFeature.id());
+            //     features.line("transportation_name")
+            //         .setAttr("routingMinZoom", routingMinZoom)
+            //         .setAttr("highway", sourceFeature.getTag("highway"))
+            //         .setMinZoom(routingMinZoom)
+            //         .setMinPixelSize(0)
+            //         .setPixelTolerance(0);  
+            // }
         }
     }
 

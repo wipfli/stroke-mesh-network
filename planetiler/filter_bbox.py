@@ -2,10 +2,11 @@ def isInBBox(lon, lat, min_lon, min_lat, max_lon, max_lat):
     return (min_lon < lon < max_lon) and (min_lat < lat < max_lat)
 
 def filter(filename):
-    min_lon = 7.931929
-    min_lat = 47.22249
-    max_lon = 8.187085
-    max_lat = 47.34338
+    # -2.820957,48.474163,-2.779979,48.490708
+    min_lon = -2.820957
+    min_lat = 48.474163
+    max_lon = -2.779979
+    max_lat = 48.490708
 
     with open(filename) as f:
         f.readline() # skip header
@@ -26,4 +27,4 @@ def filter(filename):
             line = f.readline()
 
 
-filter('traffic_export_sorted.csv')
+filter('bretagne_20250122_sorted.csv')

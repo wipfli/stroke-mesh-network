@@ -24,7 +24,7 @@ public class RoutingMinZoom {
 
         var merger = new LoopLineMerger4()
             .setPrecisionModel(new PrecisionModel());
-        String filePath = "bretagne_20250122_sorted.csv";
+        String filePath = "bretagne_uni.csv";
 
         String line;
         String delimiter = ",";
