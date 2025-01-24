@@ -504,10 +504,10 @@ public class LoopLineMerger4 {
     buildNodes(edges);
     double minAngle = Math.PI / 3; // 60 degrees
     degreeTwoMerge(minAngle);
-    var nodesToReconnect = findNodesToReconnect(minAngle);
-    for (var node : nodesToReconnect) {
-      reconnect(node, minAngle);
-    }
+    // var nodesToReconnect = findNodesToReconnect(minAngle);
+    // for (var node : nodesToReconnect) {
+    //   reconnect(node, minAngle);
+    // }
   }
 
   public List<Node> findNodesToReconnect(double minAngle) {
@@ -563,7 +563,7 @@ public class LoopLineMerger4 {
     for (var node : output) {
       for (var edge : node.getEdges()) {
         if (edge.active) {
-          // System.out.println(factory.createLineString(edge.coordinates.toArray(Coordinate[]::new)));
+          System.out.println(factory.createLineString(edge.coordinates.toArray(Coordinate[]::new)));
           result.addAll(edge.wayIds);
         }
       }

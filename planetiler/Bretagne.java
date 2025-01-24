@@ -40,17 +40,17 @@ public class Bretagne implements Profile {
         System.out.println("get routing minzoom...");
         myProfile.wayIdToRoutingMinZoom = RoutingMinZoom.getMinZoomMap(myProfile.wayIdToSemanticMinZoom);
 
-        var arguments = Arguments.fromArgs(args)
-            .withDefault("download", true)
-            .withDefault("minzoom", 6)
-            .withDefault("maxzoom", 12);
+        // var arguments = Arguments.fromArgs(args)
+        //     .withDefault("download", true)
+        //     .withDefault("minzoom", 6)
+        //     .withDefault("maxzoom", 12);
 
-        String area = arguments.getString("area", "geofabrik area to download", defaultArea);
-        Planetiler.create(arguments)
-            .addOsmSource("osm", Path.of("data", area + ".osm.pbf"), "geofabrik:" + area)
-            .overwriteOutput(Path.of("data", "test.pmtiles"))
-            .setProfile(myProfile)
-            .run();
+        // String area = arguments.getString("area", "geofabrik area to download", defaultArea);
+        // Planetiler.create(arguments)
+        //     .addOsmSource("osm", Path.of("data", area + ".osm.pbf"), "geofabrik:" + area)
+        //     .overwriteOutput(Path.of("data", "test.pmtiles"))
+        //     .setProfile(myProfile)
+        //     .run();
 
     }
 
@@ -69,15 +69,15 @@ public class Bretagne implements Profile {
                 }
             }
 
-            // if (wayIdToRoutingMinZoom.keySet().contains(sourceFeature.id())) {
-            //     int routingMinZoom = wayIdToRoutingMinZoom.get(sourceFeature.id());
-            //     features.line("transportation_name")
-            //         .setAttr("routingMinZoom", routingMinZoom)
-            //         .setAttr("highway", sourceFeature.getTag("highway"))
-            //         .setMinZoom(routingMinZoom)
-            //         .setMinPixelSize(0)
-            //         .setPixelTolerance(0);  
-            // }
+            if (wayIdToRoutingMinZoom.keySet().contains(sourceFeature.id())) {
+                int routingMinZoom = wayIdToRoutingMinZoom.get(sourceFeature.id());
+                features.line("transportation_name")
+                    .setAttr("routingMinZoom", routingMinZoom)
+                    .setAttr("highway", sourceFeature.getTag("highway"))
+                    .setMinZoom(routingMinZoom)
+                    .setMinPixelSize(0)
+                    .setPixelTolerance(0);  
+            }
         }
     }
 

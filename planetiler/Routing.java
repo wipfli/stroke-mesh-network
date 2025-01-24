@@ -22,10 +22,11 @@ public class Routing {
     public static void main(String[] args) {
         var merger = new LoopLineMerger2()
             .setPrecisionModel(new PrecisionModel());
-        String filePath = "traffic_export_sorted.csv";
+        // String filePath = "traffic_export_sorted.csv";
         // String filePath = "traffic.csv";
         // String filePath = "traffic_short.csv";
         // String filePath = "mittelland.csv";
+        String filePath = "bretagne_20250122_sorted.csv";
 
         String line;
         String delimiter = ","; // Adjust as necessary
@@ -50,7 +51,7 @@ public class Routing {
             e.printStackTrace();
         }
 
-        merger.setMinVisits(1e9);
+        merger.setMinVisits(1e5);
         merger.setLoopMinLength(0.001);
         merger.setStubMinLength(0.1);
 
