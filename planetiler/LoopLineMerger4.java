@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
@@ -489,11 +490,102 @@ public class LoopLineMerger4 {
     return result;
   }
 
+  public void process() {
+    output.clear();
+    var edges = nodeLines(input);
+    buildNodes(edges);
+
+    degreeTwoMerge();
+
+    if (minVisits > 0) {
+      double targetMinVisits = minVisits;
+      minVisits = 1e6;
+      removeByVisits();
+      minVisits = targetMinVisits;
+    }
+    
+    if (loopMinLength > 0.0) {
+      breakLoops();
+      degreeTwoMerge();
+    }
+
+    if (minVisits > 0) {
+      removeByVisits();
+    }
+
+    if (stubMinLength > 0.0) {
+      removeShortStubEdges();
+      // removeShortStubEdges does degreeTwoMerge internally
+    }
+
+    if (tolerance >= 0.0) {
+      simplify();
+      removeDuplicatedEdges();
+      degreeTwoMerge();
+    }
+
+    if (mergeStrokes) {
+      strokeMerge();
+      degreeTwoMerge();
+    }
+
+    if (minLength > 0) {
+      removeShortEdges();
+    }
+
+    var activeDeadEnds = findActiveDeadEnds();
+    for (var node : activeDeadEnds) {
+      reconnect(node);
+    }
+  }
+
+  public List<Node> findActiveDeadEnds() {
+    List<Node> result = new ArrayList<>();
+    for (var node : output) {
+      var activeEdges = node.getEdges().stream().filter(edge -> edge.active).collect(Collectors.toList());
+      if (activeEdges.size() == 1) {
+        result.add(node);
+      }
+    }
+    return result;
+  }
+
+  public void reconnect(Node startNode) {
+    Node node = startNode;
+
+    while (true) {
+      var activeEdges = node.getEdges().stream().filter(edge -> edge.active).collect(Collectors.toList());
+      if (activeEdges.size() != 1) {
+        break;
+      }
+      var inactiveEdges = node.getEdges().stream().filter(edge -> !edge.active).collect(Collectors.toList());
+      if (inactiveEdges.size() == 0) {
+        break;
+      }
+      inactiveEdges.sort(Comparator.comparingDouble(edge -> edge.visits));
+      var nextEdge = inactiveEdges.getLast();
+      nextEdge.activate();
+      node = nextEdge.to;
+    }
+  }
+
   public List<Long> getMergedWayIds() {
     Set<Long> result = new HashSet<>();
     for (var node : output) {
       for (var edge : node.getEdges()) {
         result.addAll(edge.wayIds);
+      }
+    }
+    return new ArrayList<>(result);
+  }
+
+  public List<Long> getActiveWayIds() {
+    Set<Long> result = new HashSet<>();
+    for (var node : output) {
+      for (var edge : node.getEdges()) {
+        if (edge.active) {
+          result.addAll(edge.wayIds);
+        }
       }
     }
     return new ArrayList<>(result);
@@ -665,6 +757,16 @@ public class LoopLineMerger4 {
         to.removeEdge(reversed);
         removed = true;
       }
+    }
+
+    void activate() {
+      active = true;
+      reversed.active = true;
+    }
+
+    void deactivate() {
+      active = false;
+      reversed.active = false;
     }
 
     double angleTo(Edge other) {

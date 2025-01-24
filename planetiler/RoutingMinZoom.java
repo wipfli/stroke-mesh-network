@@ -47,13 +47,15 @@ public class RoutingMinZoom {
             e.printStackTrace();
         }
 
-        return new HashMap<>();
-        // merger.setMinVisits(1e9);
-        // merger.setLoopMinLength(0.001);
-        // merger.setStubMinLength(0.1);
+        int defaultActiveMinZoom = 6;
+        merger.setDefaultActiveMinZoom(defaultActiveMinZoom);
+        merger.process();
+        var activeWayIds = merger.getActiveWayIds();
 
-        // for (var linestring : merger.getMergedLineStrings()) {
-        //     System.out.println(linestring);
-        // }
+        Map<Long, Integer> result = new HashMap<>();
+        for (var wayId : activeWayIds) {
+            result.put(wayId, defaultActiveMinZoom);
+        }
+        return result;
     }
 }
