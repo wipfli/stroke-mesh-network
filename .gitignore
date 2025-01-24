@@ -1,3 +1,5 @@
 planetiler.jar
 data/
 logs.txt
+osrm/
+reconnect/
